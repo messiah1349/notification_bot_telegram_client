@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 import utils.utils as ut
 import lib.print_functions as pf
 import lib.keyboards as kb
-from lib.backend import Backend
+from lib.backend import AbstractBackendRequester
 
 menu_names = ut.get_menu_names()
 
@@ -35,7 +35,7 @@ class Client:
         PROCESS_TIME: int
 
     def __init__(self, token: str, engine):
-        self.backend = Backend(engine)
+        self.backend: AbstractBackendRequester = Backend(engine)
         self.application = Application.builder().token(token).build()
         self.states = self.get_states()
         logger.info('engine was passed')

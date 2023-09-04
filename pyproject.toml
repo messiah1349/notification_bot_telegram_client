@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "notification-bot-telegram-client"
+version = "0.1.0"
+description = ""
+authors = ["messiah1349 <messiah1349@gmail.com>"]
+readme = "README.md"
+packages = [{include = "notification_bot_telegram_client"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+python-telegram-bot = "^20.5"
+pyyaml = "^6.0.1"
+pytz = "^2023.3"
+requests = "^2.31.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
