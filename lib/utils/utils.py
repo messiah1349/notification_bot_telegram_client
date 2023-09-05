@@ -1,9 +1,13 @@
 import yaml
 import pytz
 import os
-from dataclasses import make_dataclass
-from configs.definitions import ROOT_DIR
+from dataclasses import dataclass, make_dataclass
 from datetime import datetime
+
+@dataclass
+class Response:
+    status: int
+    answer: str
 
 
 def read_config(config_path: str) -> dict:
@@ -13,7 +17,7 @@ def read_config(config_path: str) -> dict:
     return prime_service
 
 
-CONFIG_PATH = ROOT_DIR + '/configs/config.yaml'
+CONFIG_PATH = './configs/config.yaml'
 config = read_config(CONFIG_PATH)
 
 

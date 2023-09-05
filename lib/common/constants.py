@@ -1,0 +1,4 @@
+import os
+
+BACKEND_HOST = os.getenv('NOTIFICATION_BOT_BACKEND_HOST', 'localhost')
+BACKEND_PORT = os.getenv('NOTIFICATION_BOT_BACKEND_HOST', '8001')
