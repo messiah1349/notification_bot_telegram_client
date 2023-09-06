@@ -12,9 +12,9 @@ from telegram.ext import (
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-import utils.utils as ut
-import lib.print_functions as pf
-import lib.keyboards as kb
+import lib.utils.utils as ut
+import lib.client.print_functions as pf
+import lib.client.keyboards as kb
 from lib.backend import AbstractBackendRequester
 
 menu_names = ut.get_menu_names()
@@ -34,11 +34,11 @@ class Client:
         PROCESS_RENAME_DEED_NAME: int
         PROCESS_TIME: int
 
-    def __init__(self, token: str, engine):
-        self.backend: AbstractBackendRequester = Backend(engine)
+    def __init__(self, token: str, backend_requester: AbstractBackendRequester):
+        self.backend: AbstractBackendRequester = backend_requester
         self.application = Application.builder().token(token).build()
         self.states = self.get_states()
-        logger.info('engine was passed')
+        logger.info('client was inited')
 
     def get_states(self):
         states = self.States(*range(6))
@@ -67,7 +67,7 @@ class Client:
 
     async def show_deeds(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         user_id = update.message.from_user.id
-        response = self.backend.get_deed_for_user(user_id)
+        response = await self.backend.get_deed_for_user(user_id)
         deeds = response.answer
         markup = kb.get_inline_deeds(deeds)
         text = pf.this_is_deeds()
@@ -91,7 +91,7 @@ class Client:
     async def process_deed_name(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         deed_name = update.message.text
         user_id = update.message.from_user.id
-        response = self.backend.add_deed(deed_name, user_id)
+        response = await self.backend.add_deed(deed_name, user_id)
         deed_id = response.answer
         context.user_data['deed_id'] = deed_id
 
@@ -169,7 +169,7 @@ class Client:
         logger.info(f'add job: {notification_time=}, {user_id=}, {deed_id=}')
 
         # localized_notification_time = ut.localize(notification_time)
-        response = self.backend.add_notification(deed_id, notification_time)
+        response = await self.backend.add_notification(deed_id, notification_time)
 
         markup = kb.dzyn_keyboard()
         text = pf.wow()
@@ -228,7 +228,7 @@ class Client:
 
         job = context.job
         deed_id = int(job.data)
-        response = self.backend.get_deed(deed_id)
+        response = await self.backend.get_deed(deed_id)
         deed = response.answer
         markup = kb.get_inline_deed_after_notify(deed)
         await context.bot.send_message(job.user_id, text=f"🔔 {deed.name}", reply_markup=markup)
@@ -239,7 +239,7 @@ class Client:
         await query.answer()
 
         deed_id = int(query.data.split('=')[1])
-        response = self.backend.get_deed(deed_id)
+        response = await self.backend.get_deed(deed_id)
         deed = response.answer
         inline_markup = kb.get_inline_deed(deed)
 
@@ -259,7 +259,7 @@ class Client:
         await query.answer()
 
         deed_id = int(query.data.split('=')[1])
-        response = self.backend.mark_deed_as_done(deed_id)
+        response = await self.backend.mark_deed_as_done(deed_id)
         reset_job = self.reset_notification_job(str(deed_id), context)
         text = pf.deed_done()
         if reset_job:
@@ -307,7 +307,7 @@ class Client:
     async def process_rename_deed(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = update.message.text
         deed_id = context.user_data['deed_id']
-        response = self.backend.rename_deed(deed_id, text)
+        response = await self.backend.rename_deed(deed_id, text)
 
         markup = kb.get_start_keyboard()
         text = pf.deed_renamed()
@@ -330,9 +330,9 @@ class Client:
 
         return self.states.MAIN_MENU_CHOSE
 
-    def initialize_notifications(self):
+    async def initialize_notifications(self):
         logger.info('move to all active deeds')
-        response = self.backend.get_active_deeds()
+        response = await self.backend.get_active_deeds()
         logger.info('passed to all active deeds')
         # print(response)
         deeds = response.answer
@@ -390,7 +390,7 @@ class Client:
 
     def build_application(self):
         logger.info('start to initialize app')
-        self.initialize_notifications()
+        #self.initialize_notifications()
         conv_handler = self.build_conversation_handler()
         self.application.add_handler(conv_handler)
         self.application.run_polling(drop_pending_updates=True)

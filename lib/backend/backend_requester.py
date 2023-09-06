@@ -2,15 +2,14 @@ from datetime import datetime
 import json
 import aiohttp
 
-from utils.utils import Response
+from lib.utils.utils import Response
 from lib.backend.abs_backend_requester import AbstractBackendRequester
-from lib.common.constants import BACKEND_HOST, BACKEND_PORT
 
 
 class BackendRequester(AbstractBackendRequester):
 
-    def __init__(self):
-        self.backend_url = f"{BACKEND_HOST}:{BACKEND_PORT}"
+    def __init__(self, backend_host: str, backend_port: str) -> Response:
+        self.backend_url = f"http://{backend_host}:{backend_port}"
 
     async def _post(self, url: str, data: dict) -> Response:
         async with aiohttp.ClientSession() as session:
@@ -24,6 +23,7 @@ class BackendRequester(AbstractBackendRequester):
             async with session.get(url) as response:
                 status = response.status
                 text = await response.text()
+                print(text)
         return Response(status, text)
         
     async def _patch(self, url: str, data: dict) -> Response:
