@@ -4,6 +4,8 @@ import os
 from dataclasses import dataclass, make_dataclass
 from datetime import datetime
 
+from lib.common.constants import TZ
+
 @dataclass
 class Response:
     status: int
@@ -42,8 +44,7 @@ def name_to_reg(name: str) -> str:
 
 
 def localize(datetime_: datetime):
-    timezone_ = os.getenv('TZ', None)
-    tz = pytz.timezone(timezone_)
+    tz = pytz.timezone(TZ)
     datetime_.astimezone(tz)
     return datetime_.astimezone(tz)
 

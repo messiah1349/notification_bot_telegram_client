@@ -91,7 +91,7 @@ class Client:
     async def process_deed_name(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         deed_name = update.message.text
         user_id = update.message.from_user.id
-        response = await self.backend.add_deed(deed_name, user_id)
+        response = await self.backend.add_deed(user_id, deed_name)
         deed_id = response.answer
         context.user_data['deed_id'] = deed_id
 
@@ -156,31 +156,31 @@ class Client:
 
         return self.states.MAIN_MENU_CHOSE
 
-    async def make_job(self,
-                       deed_id: int,
-                       user_id: int,
-                       notification_time: datetime,
-                       query: CallbackQuery,
-                       context: ContextTypes.DEFAULT_TYPE) -> None:
-
-        self.reset_notification_job(name=str(deed_id), context=context)
-        context.job_queue.run_once(self.notification, when=notification_time, user_id=user_id,
-                                   data=str(deed_id), name=str(deed_id))
-        logger.info(f'add job: {notification_time=}, {user_id=}, {deed_id=}')
-
-        # localized_notification_time = ut.localize(notification_time)
-        response = await self.backend.add_notification(deed_id, notification_time)
-
-        markup = kb.dzyn_keyboard()
-        text = pf.wow()
-        await query.edit_message_text(text=text, reply_markup=markup)
-
-        markup = kb.get_start_keyboard()
-        text = f"{pf.notify_added()} {ut.repr_date(notification_time, time_=True)}"
-        await query.message.reply_text(
-            text,
-            reply_markup=markup
-        )
+#    async def make_job(self,
+#                       deed_id: int,
+#                       user_id: int,
+#                       notification_time: datetime,
+#                       query: CallbackQuery,
+#                       context: ContextTypes.DEFAULT_TYPE) -> None:
+#
+#        self.reset_notification_job(name=str(deed_id), context=context)
+#        context.job_queue.run_once(self.notification, when=notification_time, user_id=user_id,
+#                                   data=str(deed_id), name=str(deed_id))
+#        logger.info(f'add job: {notification_time=}, {user_id=}, {deed_id=}')
+#
+#        # localized_notification_time = ut.localize(notification_time)
+#        response = await self.backend.add_notification(deed_id, notification_time)
+#
+#        markup = kb.dzyn_keyboard()
+#        text = pf.wow()
+#        await query.edit_message_text(text=text, reply_markup=markup)
+#
+#        markup = kb.get_start_keyboard()
+#        text = f"{pf.notify_added()} {ut.repr_date(notification_time, time_=True)}"
+#        await query.message.reply_text(
+#            text,
+#            reply_markup=markup
+#        )
 
     async def process_minute_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         query = update.callback_query
@@ -205,7 +205,8 @@ class Client:
         del context.user_data['deed_id']
 
         user_id = query.from_user.id
-        await self.make_job(deed_id, user_id, notification_time, query, context)
+        #await self.make_job(deed_id, user_id, notification_time, query, context)
+        await self.backend.add_notification(deed_id, notification_time)
 
         return self.states.MAIN_MENU_CHOSE
 
@@ -220,7 +221,8 @@ class Client:
         del context.user_data['deed_id']
 
         user_id = query.from_user.id
-        await self.make_job(deed_id, user_id, notification_time, query, context)
+        #await self.make_job(deed_id, user_id, notification_time, query, context)
+        await self.backend.add_notification(deed_id, notification_time)
 
         return self.states.MAIN_MENU_CHOSE
 
@@ -260,9 +262,8 @@ class Client:
 
         deed_id = int(query.data.split('=')[1])
         response = await self.backend.mark_deed_as_done(deed_id)
-        reset_job = self.reset_notification_job(str(deed_id), context)
         text = pf.deed_done()
-        if reset_job:
+        if response.status == 200:
             text += f". {pf.notification_canceled()}"
 
         markup = kb.get_start_keyboard()
