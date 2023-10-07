@@ -1,6 +1,6 @@
 from telegram import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
 from datetime import datetime, timedelta
-import utils.utils as ut
+import lib.utils.utils as ut
 
 menu_names = ut.get_menu_names()
 

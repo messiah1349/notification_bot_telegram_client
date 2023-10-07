@@ -11,11 +11,12 @@ from telegram.ext import (
 )
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+import json
 
-import utils.utils as ut
-import lib.print_functions as pf
-import lib.keyboards as kb
-from lib.backend import Backend
+import lib.utils.utils as ut
+import lib.client.print_functions as pf
+import lib.client.keyboards as kb
+from lib.backend import AbstractBackendRequester
 
 menu_names = ut.get_menu_names()
 
@@ -34,11 +35,11 @@ class Client:
         PROCESS_RENAME_DEED_NAME: int
         PROCESS_TIME: int
 
-    def __init__(self, token: str, engine):
-        self.backend = Backend(engine)
+    def __init__(self, token: str, backend_requester: AbstractBackendRequester):
+        self.backend: AbstractBackendRequester = backend_requester
         self.application = Application.builder().token(token).build()
         self.states = self.get_states()
-        logger.info('engine was passed')
+        logger.info('client was inited')
 
     def get_states(self):
         states = self.States(*range(6))
@@ -67,7 +68,7 @@ class Client:
 
     async def show_deeds(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         user_id = update.message.from_user.id
-        response = self.backend.get_deed_for_user(user_id)
+        response = await self.backend.get_deed_for_user(user_id)
         deeds = response.answer
         markup = kb.get_inline_deeds(deeds)
         text = pf.this_is_deeds()
@@ -91,8 +92,10 @@ class Client:
     async def process_deed_name(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         deed_name = update.message.text
         user_id = update.message.from_user.id
-        response = self.backend.add_deed(deed_name, user_id)
-        deed_id = response.answer
+        response = await self.backend.add_deed(user_id, deed_name)
+        deed_js = response.answer
+        deed = json.loads(deed_js)
+        deed_id = deed['id']
         context.user_data['deed_id'] = deed_id
 
         markup = kb.bool_variants()
@@ -156,32 +159,6 @@ class Client:
 
         return self.states.MAIN_MENU_CHOSE
 
-    async def make_job(self,
-                       deed_id: int,
-                       user_id: int,
-                       notification_time: datetime,
-                       query: CallbackQuery,
-                       context: ContextTypes.DEFAULT_TYPE) -> None:
-
-        self.reset_notification_job(name=str(deed_id), context=context)
-        context.job_queue.run_once(self.notification, when=notification_time, user_id=user_id,
-                                   data=str(deed_id), name=str(deed_id))
-        logger.info(f'add job: {notification_time=}, {user_id=}, {deed_id=}')
-
-        # localized_notification_time = ut.localize(notification_time)
-        response = self.backend.add_notification(deed_id, notification_time)
-
-        markup = kb.dzyn_keyboard()
-        text = pf.wow()
-        await query.edit_message_text(text=text, reply_markup=markup)
-
-        markup = kb.get_start_keyboard()
-        text = f"{pf.notify_added()} {ut.repr_date(notification_time, time_=True)}"
-        await query.message.reply_text(
-            text,
-            reply_markup=markup
-        )
-
     async def process_minute_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         query = update.callback_query
         await query.answer()
@@ -204,8 +181,36 @@ class Client:
         deed_id = context.user_data['deed_id']
         del context.user_data['deed_id']
 
-        user_id = query.from_user.id
-        await self.make_job(deed_id, user_id, notification_time, query, context)
+        await self.setup_notification(deed_id, notification_time, query)
+
+        return self.states.MAIN_MENU_CHOSE
+
+    async def setup_notification(
+        self,
+        deed_id: int,
+        notification_time: datetime,
+        query: CallbackQuery
+    ) -> None:
+        response = await self.backend.add_notification(deed_id, notification_time)
+
+        if response.status == 200:
+            markup = kb.dzyn_keyboard()
+            text = pf.wow()
+            await query.edit_message_text(text=text, reply_markup=markup)
+
+            markup = kb.get_start_keyboard()
+            text = f"{pf.notify_added()} {ut.repr_date(notification_time, time_=True)}"
+            await query.message.reply_text(
+                text,
+                reply_markup=markup
+            )
+        else:
+            markup = kb.get_start_keyboard()
+            text = f"{pf.internal_error()}"
+            await query.message.reply_text(
+                text,
+                reply_markup=markup
+            )
 
         return self.states.MAIN_MENU_CHOSE
 
@@ -214,55 +219,43 @@ class Client:
         await query.answer()
 
         minutes = int(query.data.split('=')[1])
-        notification_time = ut.localize(datetime.now()) + timedelta(minutes=minutes)
+        notification_time = ut.localize(
+            datetime.now()) + timedelta(minutes=minutes)
 
         deed_id = context.user_data['deed_id']
         del context.user_data['deed_id']
 
-        user_id = query.from_user.id
-        await self.make_job(deed_id, user_id, notification_time, query, context)
+        await self.setup_notification(deed_id, notification_time, query)
 
         return self.states.MAIN_MENU_CHOSE
-
-    async def notification(self, context: ContextTypes.DEFAULT_TYPE) -> None:
-
-        job = context.job
-        deed_id = int(job.data)
-        response = self.backend.get_deed(deed_id)
-        deed = response.answer
-        markup = kb.get_inline_deed_after_notify(deed)
-        await context.bot.send_message(job.user_id, text=f"🔔 {deed.name}", reply_markup=markup)
-        logger.info(f"notification sent {job.user_id=}, {deed.name=}, {deed_id=}")
 
     async def process_deed_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
 
         deed_id = int(query.data.split('=')[1])
-        response = self.backend.get_deed(deed_id)
+        response = await self.backend.get_deed(deed_id)
         deed = response.answer
         inline_markup = kb.get_inline_deed(deed)
 
         text = deed.name
         if deed.notify_time:
-            text = text + f'\n🔔- {ut.repr_date(ut.localize(deed.notify_time), time_=True)}'
+            text = text + \
+                f'\n🔔- {ut.repr_date(ut.localize(deed.notify_time), time_=True)}'
 
         await query.message.reply_text(
             text,
             reply_markup=inline_markup
         )
 
-        return self.states.MAIN_MENU_CHOSE
-
     async def process_done_deed_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
 
         deed_id = int(query.data.split('=')[1])
-        response = self.backend.mark_deed_as_done(deed_id)
-        reset_job = self.reset_notification_job(str(deed_id), context)
+        response = await self.backend.mark_deed_as_done(deed_id)
         text = pf.deed_done()
-        if reset_job:
+        if response.status == 200:
             text += f". {pf.notification_canceled()}"
 
         markup = kb.get_start_keyboard()
@@ -307,7 +300,7 @@ class Client:
     async def process_rename_deed(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = update.message.text
         deed_id = context.user_data['deed_id']
-        response = self.backend.rename_deed(deed_id, text)
+        response = await self.backend.rename_deed(deed_id, text)
 
         markup = kb.get_start_keyboard()
         text = pf.deed_renamed()
@@ -330,24 +323,6 @@ class Client:
 
         return self.states.MAIN_MENU_CHOSE
 
-    def initialize_notifications(self):
-        logger.info('move to all active deeds')
-        response = self.backend.get_active_deeds()
-        logger.info('passed to all active deeds')
-        # print(response)
-        deeds = response.answer
-
-        for deed in deeds:
-            # notification_time = ut.localize(deed.notify_time)
-            notification_time = deed.notify_time
-            if notification_time < ut.localize(datetime.now()):
-                # if notification_time < datetime.now():
-                continue
-            user_id = deed.telegram_id
-            deed_id = deed.id
-            self.application.job_queue.run_once(self.notification, when=notification_time, user_id=user_id,
-                                                data=str(deed_id), name=str(deed_id))
-
     async def done(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
@@ -355,29 +330,41 @@ class Client:
         conv_handler = ConversationHandler(
             allow_reentry=True,
             entry_points=[
-                    CommandHandler("start", self.start),
-                    CallbackQueryHandler(self.process_done_deed_callback, pattern="^notify_done_deed_id="),
-                    CallbackQueryHandler(self.process_reschedule_deed_after_notify_callback,
-                                         pattern="^(notify_timer_deed_id=|timer_deed_id=)")
+                CommandHandler("start", self.start),
+                CallbackQueryHandler(
+                    self.process_done_deed_callback, pattern="^notify_done_deed_id="),
+                CallbackQueryHandler(self.process_reschedule_deed_after_notify_callback,
+                                     pattern="^(notify_timer_deed_id=|timer_deed_id=)")
             ],
             states={
                 self.states.MAIN_MENU_CHOSE: [
-                    MessageHandler(filters.Regex(ut.name_to_reg(menu_names.show_deeds)), self.show_deeds),
-                    MessageHandler(filters.Regex(ut.name_to_reg(menu_names.add_deed)), self.add_deed),
-                    CallbackQueryHandler(self.process_deed_callback, pattern="^deed_id="),
-                    CallbackQueryHandler(self.process_done_deed_callback, pattern="^done_deed_id="),
-                    CallbackQueryHandler(self.process_rename_deed_name_callback, pattern="^rename_deed_id="),
-                    CallbackQueryHandler(self.process_day_callback, pattern="^day="),
-                    CallbackQueryHandler(self.process_hour_callback, pattern="^hour="),
-                    CallbackQueryHandler(self.process_minute_callback, pattern="^minute="),
-                    CallbackQueryHandler(self.process_postpone_callback, pattern="^postpone="),
-                    CallbackQueryHandler(self.process_dzyn_callback, pattern=ut.name_to_reg('dzyn')),
+                    MessageHandler(filters.Regex(ut.name_to_reg(
+                        menu_names.show_deeds)), self.show_deeds),
+                    MessageHandler(filters.Regex(ut.name_to_reg(
+                        menu_names.add_deed)), self.add_deed),
+                    CallbackQueryHandler(
+                        self.process_deed_callback, pattern="^deed_id="),
+                    CallbackQueryHandler(
+                        self.process_done_deed_callback, pattern="^done_deed_id="),
+                    CallbackQueryHandler(
+                        self.process_rename_deed_name_callback, pattern="^rename_deed_id="),
+                    CallbackQueryHandler(
+                        self.process_day_callback, pattern="^day="),
+                    CallbackQueryHandler(
+                        self.process_hour_callback, pattern="^hour="),
+                    CallbackQueryHandler(
+                        self.process_minute_callback, pattern="^minute="),
+                    CallbackQueryHandler(
+                        self.process_postpone_callback, pattern="^postpone="),
+                    CallbackQueryHandler(
+                        self.process_dzyn_callback, pattern=ut.name_to_reg('dzyn')),
                 ],
                 self.states.PROCESS_DEED_NAME: [
                     MessageHandler(filters.TEXT, self.process_deed_name)
                 ],
                 self.states.PROCESS_NOTIFICATION_FACT: [
-                    MessageHandler(filters.Regex(f"{menu_names.yes_}|{menu_names.no_}"), self.process_notification_fact),
+                    MessageHandler(filters.Regex(
+                        f"{menu_names.yes_}|{menu_names.no_}"), self.process_notification_fact),
                 ],
                 self.states.PROCESS_RENAME_DEED_NAME: [
                     MessageHandler(filters.TEXT, self.process_rename_deed)
@@ -390,7 +377,6 @@ class Client:
 
     def build_application(self):
         logger.info('start to initialize app')
-        self.initialize_notifications()
         conv_handler = self.build_conversation_handler()
         self.application.add_handler(conv_handler)
         self.application.run_polling(drop_pending_updates=True)
