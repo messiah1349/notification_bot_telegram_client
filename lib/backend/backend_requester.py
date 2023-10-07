@@ -4,7 +4,7 @@ import aiohttp
 
 from lib.utils.utils import Response
 from lib.backend.abs_backend_requester import AbstractBackendRequester
-from lib.backend.models import Deed, AddNotification, InputDeed
+from lib.backend.models import Deed, InputDeed
 
 
 class BackendRequester(AbstractBackendRequester):
@@ -25,14 +25,15 @@ class BackendRequester(AbstractBackendRequester):
                 status = response.status
                 text = await response.text()
         return Response(status, text)
-        
+
     async def _patch(self, url: str, data: dict) -> Response:
         async with aiohttp.ClientSession() as session:
             async with session.patch(url=url, json=data) as response:
+                print(f"{url=}, {data=}")
                 status = response.status
                 text = await response.text()
         return Response(status, text)
-    
+
     async def _delete(self, url: str) -> Response:
         async with aiohttp.ClientSession() as session:
             async with session.delete(url=url) as response:
@@ -42,13 +43,14 @@ class BackendRequester(AbstractBackendRequester):
 
     async def get_deed_for_user(self, user_id: int) -> Response:
         url = self.backend_url + f'/user/{user_id}/deeds/'
+        print(url)
         response = await self._get(url=url)
         deeds_src = json.loads(response.answer)
         deeds = [Deed.parse_obj(deed) for deed in deeds_src]
         return Response(response.status, deeds)
 
     async def add_deed(self, user_id: int, deed_name: str) -> Response:
-        url = self.backend_url + f"/deed/add/"        
+        url = self.backend_url + "/deed/add/"
         data = {'telegram_id': user_id, 'deed_name': deed_name}
         InputDeed.model_validate(data)
         response = await self._post(url, data)

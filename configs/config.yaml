@@ -22,5 +22,6 @@ answers_naming:
   notification_canceled: Напоминание не придет
   text_new_deed_name: Введите новое имя
   deed_renamed: Переименовано
+  internal_error: Some error happend. We are fixing it
   dzyn: Дзынь
   wow: Ура!

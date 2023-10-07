@@ -1,4 +1,3 @@
-from tkinter import W
 from lib import client_app
 
 if __name__ == '__main__':

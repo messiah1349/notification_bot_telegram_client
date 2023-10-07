@@ -58,6 +58,9 @@ def text_new_deed_name() -> str:
 def deed_renamed() -> str:
     return answer_names.deed_renamed
 
+def internal_error() -> str:
+    return answer_names.internal_error
+
 
 def dzyn() -> str:
     return answer_names.dzyn
