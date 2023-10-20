@@ -104,7 +104,6 @@ class Client:
             text,
             reply_markup=markup
         )
-
         return self.states.PROCESS_NOTIFICATION_FACT
 
     async def process_notification_fact(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:

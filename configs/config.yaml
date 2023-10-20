@@ -2,26 +2,25 @@ bd_directory: data/
 bd_name: main.db
 
 menu_naming:
-  add_deed: Добавить дело
-  show_deeds: Показать дела
-  yes_: Да
-  no_: Нет
+  add_deed: Add deed
+  show_deeds: Show deeds
+  yes_: Yes! 
+  no_: No! 
 
 answers_naming:
-  chose_move: Выберите действие
-  this_is_deeds: Вот такие дела
-  deed_name_questions: Как называется дело
-  deed_added: Добавили
-  notification_questions: Нужно напоминание
-  chose_day: На сколько отложить? Или выберите день
-  chose_hour: Выберите час
-  chose_minute: Выберите минуту
-  time_passed: Это время уже прошло :( Попробуйте еще разок
-  notify_added: Добавили! Мы вас уведомим в
-  deed_done: Дело выполнено
-  notification_canceled: Напоминание не придет
-  text_new_deed_name: Введите новое имя
-  deed_renamed: Переименовано
-  internal_error: Some error happend. We are fixing it
-  dzyn: Дзынь
-  wow: Ура!
+  chose_move: Chose an action
+  this_is_deeds: That's your deeds
+  deed_name_questions: What is a name?
+  deed_added: Added
+  notification_questions: Do you need a notification?
+  chose_day: In how long? Or chose a day
+  chose_hour: Chose a hour
+  chose_minute: Chose a minute
+  time_passed: This time has already passed. Please try again
+  notify_added: Added! We will notify you at
+  deed_done: Done!
+  notification_canceled: Notification canceled
+  text_new_deed_name: Input a new name
+  deed_renamed: Renamed
+  dzyn: dzyn
+  wow: Wow!
